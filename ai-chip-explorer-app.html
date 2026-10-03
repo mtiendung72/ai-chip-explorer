@@ -1,0 +1,113 @@
+<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Chip Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:#fff;color:#0f172a;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{display:grid;grid-template-columns:250px 1fr 330px;height:100vh}
+#sb,#info{padding:16px;overflow:auto}#sb{border-right:1px solid #e5e7eb}#info{border-left:1px solid #e5e7eb}
+h1{font-size:18px;margin:0 0 2px}h1 b{color:#0891b2}.mu{color:#64748b;font-size:12.5px;margin:0 0 12px}
+#ls button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:1px solid transparent;border-radius:9px;padding:7px 10px;cursor:pointer;margin-bottom:2px}
+#ls button:hover{background:#f1f5f9}#ls button.on{background:#ecfeff;border-color:#0891b2}
+#ls i,h2 i{width:11px;height:11px;border-radius:3px;flex:none;display:inline-block}h2 i{margin-right:8px}
+#ls small{display:block;color:#64748b;font-size:11.5px}
+#cw{position:relative;min-width:0}#cv{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+#ctl{position:absolute;top:14px;right:14px;display:flex;gap:6px}
+#ctl button{font:inherit;background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;cursor:pointer}#ctl button:hover,#ctl button.on{border-color:#0891b2;color:#0891b2}
+#hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#94a3b8;font-size:12px;pointer-events:none}
+h2{font-size:18px;margin:0 0 4px;display:flex;align-items:center}.tag{font-size:11.5px;background:#f1f5f9;color:#475569;border-radius:20px;padding:2px 9px}
+h3{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#0891b2;margin:14px 0 2px}p{margin:0}
+@media(max-width:900px){#app{display:flex;flex-direction:column;height:auto}#cw{order:-1;height:58vh}#sb,#info{border:0}#ls{display:flex;flex-wrap:wrap;gap:4px}#ls button{width:auto}#ls small{display:none}}
+</style></head><body>
+<div id="app"><nav id="sb"><h1>AI Chip <b>Explorer</b></h1><p class="mu">Chip SoC minh họa · chọn bộ phận để khám phá</p><div id="ls"></div></nav>
+<div id="cw"><canvas id="cv"></canvas><div id="ctl"><button id="ex">Tách toàn bộ</button><button id="rs">Lắp lại</button></div><div id="hint">Kéo để xoay · cuộn hoặc chụm để phóng to · bấm vào chip</div></div>
+<section id="info"></section></div>
+<script>
+const $=i=>document.getElementById(i);
+// id,tên,lớp,màu,chức năng,cấu tạo,vật liệu,vai trò,ứng dụng,thông số liên quan
+const D={};[
+["ov","Tổng quan chip","Toàn bộ gói chip","#0891b2","SoC (hệ thống trên chip): CPU, GPU, bộ tăng tốc AI, cache và I/O nằm chung một die silicon, cạnh 2 die nhớ LPDDR trên cùng một gói.","Từ trên xuống: vỏ tản nhiệt → keo dẫn nhiệt → die silicon và die nhớ → underfill → đế nhiều lớp → bi hàn.","Đồng, silicon, nhựa hữu cơ, hợp kim thiếc–bạc–đồng.","Gói chip bảo vệ die mỏng, giòn; dẫn điện ra bo mạch và dẫn nhiệt ra ngoài.","Mô hình minh họa tổng quát, không đại diện cho sản phẩm hay hãng nào.","—"],
+["ihs","Vỏ tản nhiệt (IHS)","Lớp ngoài cùng","#94a3b8","Trải nhiệt từ die nhỏ ra bề mặt rộng để tản nhiệt bên trên hút đi.","Nắp kim loại có thành viền, dán lên đế và che kín die.","Đồng mạ niken (bền, chống oxy hóa).","Bảo vệ cơ học và là cầu nhiệt giữa die với quạt/tản nhiệt.","CPU máy tính để bàn, laptop hiệu năng cao, máy chủ.","Công suất tiêu thụ (TDP)"],
+["tim","Keo dẫn nhiệt (TIM)","Dưới vỏ tản nhiệt","#a8a29e","Lấp khe hở cực nhỏ giữa die và vỏ để nhiệt truyền đi tốt.","Lớp rất mỏng, dày cỡ vài chục micromet.","Kim loại indium hoặc keo/mỡ chứa hạt kim loại.","Không khí dẫn nhiệt rất kém; TIM thay chỗ khe không khí đó.","Mọi chip có vỏ tản nhiệt.","Công suất tiêu thụ (TDP)"],
+["cpu","CPU – Bộ xử lý trung tâm","Trên die SoC","#4f86c6","Giống “tổng chỉ huy”: chạy từng lệnh của chương trình và ra quyết định.","Vài đến hàng chục nhân; mỗi nhân gồm bộ giải mã lệnh, đơn vị tính số nguyên/số thực, cache L1/L2.","Silicon pha tạp; bóng bán dẫn FinFET/GAA; dây dẫn đồng; lớp cách điện hằng số điện môi thấp.","Điều phối cả hệ thống, chạy hệ điều hành và ứng dụng.","Điện thoại, laptop, máy tính, máy chủ.","Số nhân, xung nhịp (GHz)"],
+["gpu","GPU – Bộ xử lý đồ họa","Trên die SoC","#8f78d6","Giống “đội thợ đông”: làm hàng nghìn phép tính giống nhau cùng lúc.","Hàng trăm đến hàng chục nghìn lõi đơn giản gom thành cụm, kèm cache riêng.","Silicon và dây đồng; mật độ bóng bán dẫn cao nên tỏa nhiều nhiệt.","Dựng hình 3D, tăng tốc tính toán song song và AI.","Chơi game, dựng phim, đồ họa, trung tâm dữ liệu.","Hiệu năng GPU (TFLOPS)"],
+["npu","NPU – Bộ tăng tốc AI","Trên die SoC","#d56fa6","Chuyên chạy mạng nơ-ron (chủ yếu nhân ma trận) với rất ít điện.","Mảng hàng nghìn bộ nhân–cộng (MAC) kèm SRAM cục bộ, tính số nguyên 8 bit hoặc số thực 16 bit.","Silicon; thiết kế tối ưu năng lượng, đo bằng TOPS.","Chạy AI ngay trên thiết bị, không cần gửi dữ liệu lên đám mây.","Xử lý ảnh camera, nhận diện giọng nói, trợ lý AI.","Hiệu năng NPU (TOPS)"],
+["cache","Cache SRAM","Trên die SoC","#d9a82e","Giống “bàn làm việc” cạnh CPU: giữ dữ liệu hay dùng để khỏi chờ RAM.","Ô nhớ SRAM (6 bóng bán dẫn cho mỗi bit), chia cấp L1 → L3.","Silicon; chiếm nhiều diện tích vì mỗi bit cần nhiều bóng bán dẫn.","Giảm độ trễ truy cập dữ liệu, tăng hiệu năng thực.","Mọi bộ xử lý hiện đại.","Dung lượng cache (MB)"],
+["mem","Bộ nhớ LPDDR & bộ điều khiển","Die nhớ rời + khối trên SoC","#3fae88","Lưu dữ liệu đang chạy (RAM); bộ điều khiển trên SoC đọc/ghi qua đường truyền tốc độ cao.","2 die DRAM đặt cạnh SoC; mỗi bit là 1 bóng bán dẫn + 1 tụ điện, phải nạp lại liên tục.","Silicon, đồng; nối với đế bằng điểm hàn hoặc dây.","Quyết định băng thông bộ nhớ, thường là nút thắt của AI và game.","Điện thoại, laptop mỏng; AI trung tâm dữ liệu dùng HBM.","Băng thông (GB/s), dung lượng"],
+["io","I/O – Giao tiếp ngoại vi","Trên die SoC","#e08a47","Giống “cổng ra vào”: nối chip với SSD, màn hình, USB, mạng, camera.","Bộ điều khiển PCIe, USB, hiển thị và mạch giao tiếp tốc độ cao (PHY) ở rìa die.","Silicon, đồng; dùng bóng bán dẫn chịu điện áp cao hơn lõi.","Cho phép chip giao tiếp với phần còn lại của hệ thống.","Mọi thiết bị có kết nối.","Số làn PCIe, cổng hỗ trợ"],
+["pmu","PMU – Quản lý nguồn & nhiệt","Trên die SoC","#d9605c","Giống “người điều tiết điện”: cấp đúng điện áp, xung nhịp và giảm tốc khi quá nóng.","Cảm biến nhiệt, bộ điều chỉnh điện áp, logic đổi điện áp–tần số động (DVFS).","Silicon, đồng; một phần mạch nguồn nằm ngoài chip, trên bo mạch.","Cân bằng hiệu năng và mức tiêu thụ điện.","Điện thoại cần pin lâu; PC chơi game cần công suất lớn.","Công suất tiêu thụ (TDP)"],
+["die","Die silicon (SoC)","Lớp mạch chính","#64748b","Nơi chứa toàn bộ mạch: mọi khối trên mặt die là các vùng của cùng một mảnh silicon.","Cắt từ tấm wafer; chứa hàng tỷ bóng bán dẫn, phủ hơn mười lớp dây kim loại ở trên.","Tinh thể silicon siêu tinh khiết; chế tạo bằng quang khắc (DUV/EUV).","Tiến trình (nm) càng nhỏ → càng nhiều bóng bán dẫn, hiệu quả điện hơn.","Mọi vi mạch tích hợp.","Tiến trình (nm)"],
+["sub","Đế, tụ SMD & bi hàn","Lớp dưới cùng","#16a34a","Giống “cầu nối”: dẫn điện từ die tí hon ra bo mạch lớn.","Đế nhiều lớp dây đồng, tụ/điện trở SMD lọc nhiễu nguồn, lớp underfill giữ die, lưới bi hàn (BGA) bên dưới.","Nhựa hữu cơ (ABF/BT) + đồng; bi hàn thiếc–bạc–đồng; epoxy underfill.","Bảo vệ die và phân phối hàng nghìn tín hiệu, đường nguồn.","Mọi chip đóng gói dạng BGA.","—"]
+].forEach(a=>D[a[0]]=a);
+$("ls").innerHTML=Object.values(D).map(d=>`<button data-k="${d[0]}"><i style="background:${d[3]}"></i><span>${d[1]}<small>${d[2]}</small></span></button>`).join("");
+function info(id){const d=D[id];$("info").innerHTML=d?`<h2><i style="background:${d[3]}"></i>${d[1]}</h2><span class="tag">${d[2]}</span>`+[["Chức năng",4],["Cấu tạo",5],["Vật liệu",6],["Vai trò",7],["Ứng dụng",8],["Thông số liên quan",9]].map(([h,i])=>`<h3>${h}</h3><p>${d[i]}</p>`).join(""):`<h2>Chip gồm những gì?</h2><p class="mu">Bấm vào chip hoặc một mục bên trái: vỏ tản nhiệt sẽ tách ra để lộ cấu tạo bên trong, camera bay tới bộ phận bạn chọn.</p><h3>Lộ trình</h3><p>Vỏ → keo dẫn nhiệt → die (CPU, GPU, AI, cache, I/O) → bộ nhớ → đế và bi hàn.</p>`}
+info(null);
+// ---------- 3D ----------
+const T=THREE,cv=$("cv");let R;try{R=new T.WebGLRenderer({canvas:cv,antialias:true,alpha:true})}catch(e){$("cw").innerHTML='<p style="padding:30px">Trình duyệt không hỗ trợ WebGL.</p>';throw e}
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new T.Scene(),cam=new T.PerspectiveCamera(35,1,.1,100),cnv=(w,h)=>{const c=document.createElement("canvas");c.width=w;c.height=h;return c},CT=c=>new T.CanvasTexture(c);
+const ec=cnv(512,256),e=ec.getContext("2d"),gr=e.createLinearGradient(0,0,0,256);gr.addColorStop(0,"#fff");gr.addColorStop(.5,"#cfd8e3");gr.addColorStop(1,"#6b7684");e.fillStyle=gr;e.fillRect(0,0,512,256);e.fillStyle="#fff";[[60,40],[260,30],[430,50]].forEach(([a,b])=>e.fillRect(a,b,90,30));
+const et=CT(ec);et.mapping=T.EquirectangularReflectionMapping;S.environment=new T.PMREMGenerator(R).fromEquirectangular(et).texture;
+S.add(new T.HemisphereLight(0xffffff,0x8899aa,.5));const dl=new T.DirectionalLight(0xffffff,.9);dl.position.set(4,8,5);S.add(dl);
+const MT={},PK=[],M=(id,o)=>{const m=new T.MeshStandardMaterial(o);(MT[id]=MT[id]||[]).push(m);return m};
+function rr(w,d,r,h,b=.02,hole){const s=new T.Shape(),x=w/2,y=d/2;s.moveTo(-x+r,-y);s.lineTo(x-r,-y);s.quadraticCurveTo(x,-y,x,-y+r);s.lineTo(x,y-r);s.quadraticCurveTo(x,y,x-r,y);s.lineTo(-x+r,y);s.quadraticCurveTo(-x,y,-x,y-r);s.lineTo(-x,-y+r);s.quadraticCurveTo(-x,-y,-x+r,-y);
+if(hole){const p=new T.Path(),a=hole/2;p.moveTo(-a,-a);p.lineTo(-a,a);p.lineTo(a,a);p.lineTo(a,-a);p.lineTo(-a,-a);s.holes.push(p)}
+const g=new T.ExtrudeGeometry(s,{depth:h,bevelEnabled:true,bevelThickness:b,bevelSize:b,bevelSegments:2,curveSegments:6});g.rotateX(-Math.PI/2);return g}
+const topPlane=(w,d)=>{const g=new T.PlaneGeometry(w,d);g.rotateX(-Math.PI/2);return g};
+const add=(g,geo,mat,id,x=0,y=0,z=0)=>{const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.userData.id=id;g.add(m);PK.push(m);return m};
+// vùng chức năng trên die: x,y,w,h (0-1), kiểu hoa văn, màu, nhãn
+const RG={cpu:[.04,.04,.46,.30,"c","#4f86c6","CPU"],npu:[.54,.04,.42,.30,"t","#d56fa6","NPU"],gpu:[.04,.38,.58,.34,"t","#8f78d6","GPU"],cache:[.66,.38,.30,.34,"s","#d9a82e","CACHE"],mem:[.04,.76,.28,.20,"s","#3fae88","MEM"],io:[.36,.76,.36,.20,"t","#e08a47","I/O"],pmu:[.76,.76,.20,.20,"c","#d9605c","PMU"]};
+const dc=cnv(512,560),x=dc.getContext("2d");let dt,sel=null,ex=false,auto=!matchMedia("(prefers-reduced-motion:reduce)").matches;
+function pat(X,Y,w,h,t){if(t=="s")for(let i=Y+28;i<Y+h-4;i+=4)x.fillRect(X+4,i,w-8,1.5);else if(t=="t")for(let i=X+6;i<X+w-8;i+=11)for(let j=Y+28;j<Y+h-8;j+=11)x.strokeRect(i,j,8,8);else for(let i=0;i<2;i++)for(let j=0;j<2;j++){const cx=X+5+i*w/2,cy=Y+28+j*(h-24)/2,cw=w/2-10,ch=(h-24)/2-6;x.strokeRect(cx,cy,cw,ch);for(let k=cy+5;k<cy+ch-3;k+=5)x.fillRect(cx+3,k,cw-6,1.5)}}
+function drawDie(){const W=512,H=560;x.globalAlpha=1;x.fillStyle="#17233f";x.fillRect(0,0,W,H);x.strokeStyle="rgba(120,160,255,.12)";x.lineWidth=1;for(let i=0;i<W;i+=8){x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke()}
+const fo=!!RG[sel];for(const k in RG){const[a,b,w,h,t,c,l]=RG[k],X=a*W,Y=b*H,Wd=w*W,Hd=h*H;x.globalAlpha=fo&&sel!=k?.3:1;x.fillStyle=c;x.fillRect(X,Y,Wd,Hd);x.strokeStyle="rgba(255,255,255,.4)";x.fillStyle="rgba(255,255,255,.35)";x.lineWidth=1;pat(X,Y,Wd,Hd,t);x.fillStyle="#fff";x.font="bold 20px sans-serif";x.fillText(l,X+8,Y+21);if(sel==k){x.globalAlpha=1;x.strokeStyle="#fff";x.lineWidth=5;x.strokeRect(X,Y,Wd,Hd)}}
+x.globalAlpha=1;x.strokeStyle=sel=="die"?"#22d3ee":"#c9d4ea";x.lineWidth=sel=="die"?12:6;x.strokeRect(3,3,W-6,H-6);dt&&(dt.needsUpdate=true)}
+drawDie();dt=CT(dc);dt.anisotropy=8;
+const mc=cnv(256,256),y=mc.getContext("2d");y.fillStyle="#10302a";y.fillRect(0,0,256,256);for(let i=0;i<4;i++)for(let j=0;j<2;j++){const X=8+i*61,Y=10+j*124;y.fillStyle="rgba(120,230,190,.5)";y.fillRect(X,Y,55,104);y.fillStyle="#10302a";for(let k=Y+4;k<Y+100;k+=4)y.fillRect(X+2,k,51,1.5)}y.fillStyle="#ccd";y.fillRect(0,118,256,16);
+const ic=cnv(512,512),q=ic.getContext("2d");q.fillStyle="rgba(60,70,85,.8)";q.textAlign="center";q.font="bold 44px sans-serif";q.fillText("SoC · X1",256,220);q.font="22px sans-serif";q.fillText("ILLUSTRATIVE · NOT A REAL PRODUCT",256,270);q.font="20px monospace";q.fillText("AI CHIP EXPLORER",256,310);q.fillRect(60,60,16,16);
+const ihsG=new T.Group(),timG=new T.Group(),diceG=new T.Group(),subG=new T.Group(),ballG=new T.Group();S.add(ihsG,timG,diceG,subG,ballG);
+// đế + tụ SMD + bi hàn + bóng đổ
+add(subG,rr(5,5,.22,.14),M("sub",{color:0x1d6b4a,roughness:.55,metalness:.1}),"sub",0,.02,0);
+const cp=[];for(let i=0;i<13;i++)for(const z of[-1.52,-1.74,1.52,1.74])cp.push([-1.5+i*.25,z]);for(let j=0;j<7;j++)cp.push([.72,-.9+j*.3]);
+const bd=new T.InstancedMesh(new T.BoxGeometry(.14,.1,.1),M("sub",{color:0x9c7a4d,roughness:.6,metalness:.2}),cp.length),en=new T.InstancedMesh(new T.BoxGeometry(.04,.105,.105),M("sub",{color:0xd8dae0,metalness:1,roughness:.3}),cp.length*2),mx=new T.Matrix4();
+cp.forEach(([a,z],i)=>{bd.setMatrixAt(i,mx.setPosition(a,.23,z));en.setMatrixAt(2*i,mx.setPosition(a-.09,.23,z));en.setMatrixAt(2*i+1,mx.setPosition(a+.09,.23,z))});
+[bd,en].forEach(m=>{m.userData.id="sub";subG.add(m);PK.push(m)});
+const bl=new T.InstancedMesh(new T.SphereGeometry(.075,10,8),M("sub",{color:0xc9ced6,metalness:1,roughness:.3}),256);for(let i=0;i<256;i++)bl.setMatrixAt(i,mx.setPosition((i%16-7.5)*.29,-.05,(Math.floor(i/16)-7.5)*.29));bl.userData.id="sub";ballG.add(bl);PK.push(bl);
+const sc=cnv(256,256),s2=sc.getContext("2d"),sg=s2.createRadialGradient(128,128,10,128,128,128);sg.addColorStop(0,"rgba(0,0,0,.35)");sg.addColorStop(1,"rgba(0,0,0,0)");s2.fillStyle=sg;s2.fillRect(0,0,256,256);
+const sh=new T.Mesh(topPlane(9,9),new T.MeshBasicMaterial({map:CT(sc),transparent:true,depthWrite:false}));sh.position.y=-.2;ballG.add(sh);
+// die SoC + underfill + 2 die LPDDR
+add(diceG,rr(2.3,2.5,.12,.04,.01),M("sub",{color:0x3a342c,roughness:.3,metalness:.1}),"sub",-.55,.19,0);
+add(diceG,new T.BoxGeometry(2.1,.14,2.3),M("die",{color:0x9aa3b2,metalness:.8,roughness:.35}),"die",-.55,.25,0);
+add(diceG,topPlane(2.1,2.3),M("dt",{map:dt,metalness:.5,roughness:.35}),"dt",-.55,.322,0);
+const mt=CT(mc),mm=M("mem",{color:0x2c3a38,metalness:.6,roughness:.4});
+[-.62,.62].forEach(z=>{add(diceG,new T.BoxGeometry(.95,.14,1),mm,"mem",1.35,.25,z);add(diceG,topPlane(.95,1),M("mem",{map:mt,metalness:.5,roughness:.35}),"mem",1.35,.322,z)});
+// TIM + vỏ tản nhiệt
+add(timG,new T.BoxGeometry(3.5,.03,2.5),M("tim",{color:0xb4b8c0,metalness:.9,roughness:.35,transparent:true}),"tim",.09,.335,0);
+const ihm=M("ihs",{color:0xe2e5ea,metalness:1,roughness:.2,transparent:true});
+add(ihsG,rr(4,4,.22,.2,.02,3.76),ihm,"ihs",0,.2,0);add(ihsG,rr(4,4,.22,.1,.02),ihm,"ihs",0,.4,0);
+const eg=new T.MeshBasicMaterial({map:CT(ic),transparent:true,depthWrite:false});MT.ihs.push(eg);add(ihsG,topPlane(3.2,3.2),eg,"ihs",0,.525,0);
+// ---------- Trạng thái, camera ----------
+const L={ihs:0,tim:0,dice:0,ball:0},LT={...L},OP={ihs:1,tim:1},OT={ihs:1,tim:1},tg=new T.Vector3(0,.3,0),tgT=tg.clone();let th=.7,ph=1.05,rd=14,rdT=14,phT=1.05;
+const setT=()=>{const i=sel!=null;LT.ihs=ex?4.4:i?2.6:0;LT.tim=ex?2.8:i?1.2:0;LT.dice=ex?1.3:0;LT.ball=ex?-1.2:0;OT.ihs=sel==null?(ex?.6:1):(sel=="ihs"||sel=="tim"?1:.12);OT.tim=sel==null?(ex?.9:1):sel=="tim"?1:sel=="ihs"?.5:0};
+function tgt(id){const d=LT.dice+.3;if(id=="ihs")return[0,LT.ihs+.4,0,8.5];if(id=="tim")return[.1,LT.tim+.3,0,8.5];if(id=="mem")return[1.35,d,0,6.5];if(id=="sub")return[0,.1,0,9.5,1.3];if(id=="die")return[-.55,d,0,7.5];const r=RG[id];if(r)return[-.55+(r[0]+r[2]/2-.5)*2.1,d,(r[1]+r[3]/2-.5)*2.3,5.5];return[0,.3+(ex?.6:0),0,14]}
+function fly(id){const t=tgt(id);tgT.set(t[0],t[1],t[2]);rdT=t[3];phT=t[4]||(RG[id]?.85:1.05)}
+function paint(){for(const k in MT)MT[k].forEach(m=>{if(m.emissive){const on=sel==k;m.emissive.setHex(on?parseInt(D[k][3].slice(1),16):0);m.emissiveIntensity=on?.35:0}})}
+function setSel(id){sel=id;auto=false;setT();paint();drawDie();[...$("ls").children].forEach(b=>{const o=b.dataset.k==id;b.classList.toggle("on",o);o?b.setAttribute("aria-current","true"):b.removeAttribute("aria-current")});info(id);fly(id)}
+function reset(){sel=null;ex=false;$("ex").classList.remove("on");auto=!matchMedia("(prefers-reduced-motion:reduce)").matches;setT();paint();drawDie();[...$("ls").children].forEach(b=>b.classList.remove("on"));info(null);fly(null)}
+$("ls").onclick=e=>{const b=e.target.closest("button");if(b)setSel(b.dataset.k)};$("rs").onclick=reset;
+$("ex").onclick=()=>{ex=!ex;$("ex").classList.toggle("on",ex);auto=false;setT();fly(sel)};
+// ---------- Điều khiển ----------
+const ptr=new Map(),cl=(v,a,b)=>Math.min(b,Math.max(a,v)),rc=new T.Raycaster();let mv=0,pd=0;
+const dist=()=>{const p=[...ptr.values()];return Math.hypot(p[0][0]-p[1][0],p[0][1]-p[1][1])||1};
+cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);mv=0;if(ptr.size==2)pd=dist();auto=false};
+cv.onpointermove=e=>{if(!ptr.has(e.pointerId))return;const p=ptr.get(e.pointerId),dx=e.clientX-p[0],dy=e.clientY-p[1];ptr.set(e.pointerId,[e.clientX,e.clientY]);mv+=Math.abs(dx)+Math.abs(dy);if(ptr.size==1){th-=dx*.008;ph=phT=cl(ph-dy*.008,.15,2.2)}else{const d=dist();rdT=cl(rdT*pd/d,4,18);pd=d}};
+cv.onpointerup=e=>{const one=ptr.size==1&&mv<6;ptr.delete(e.pointerId);if(!one)return;const r=cv.getBoundingClientRect();rc.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),cam);
+const h=rc.intersectObjects(PK,false).find(h=>h.object.visible&&(h.object.material.opacity??1)>.5);if(!h)return;let id=h.object.userData.id;
+if(id=="dt"){const u=h.uv.x,v=1-h.uv.y;id="die";for(const k in RG){const r=RG[k];if(u>=r[0]&&u<=r[0]+r[2]&&v>=r[1]&&v<=r[1]+r[3]){id=k;break}}}
+if(sel==null&&id=="ihs")id="ov";setSel(id)};
+cv.onpointercancel=e=>ptr.delete(e.pointerId);
+cv.onwheel=e=>{e.preventDefault();auto=false;rdT=cl(rdT*(1+e.deltaY*.001),4,18)};
+new ResizeObserver(()=>{const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}).observe(cv);
+(function loop(){requestAnimationFrame(loop);for(const k in L)L[k]+=(LT[k]-L[k])*.09;ihsG.position.y=L.ihs;timG.position.y=L.tim;diceG.position.y=L.dice;ballG.position.y=L.ball;
+for(const[k,g]of[["ihs",ihsG],["tim",timG]]){OP[k]+=(OT[k]-OP[k])*.12;MT[k].forEach(m=>{m.opacity=OP[k];m.transparent=true;m.depthWrite=OP[k]>.9});g.visible=OP[k]>.02}
+if(auto)th+=.004;tg.lerp(tgT,.08);rd+=(rdT-rd)*.08;ph+=(phT-ph)*.08;
+cam.position.set(tg.x+rd*Math.sin(ph)*Math.sin(th),tg.y+rd*Math.cos(ph),tg.z+rd*Math.sin(ph)*Math.cos(th));cam.lookAt(tg);R.render(S,cam)})();
+</script></body></html>
